@@ -4,6 +4,7 @@ library(leaflet)
 library(rvest)
 library(ggiraph)
 library(rgdal)
+library(broom)
 
 url <- "https://www.worldometers.info/coronavirus/country/us/"
 
@@ -45,6 +46,8 @@ vac <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/pub
   rename(name = location) %>% 
   mutate(name = case_when(name == "New York State" ~ "New York",
                           TRUE ~ name))
+print("From website:")
+print(vac[1,])
 
 covid_vac <- left_join(covid, vac, by = "name")
 
@@ -55,6 +58,9 @@ regions <- read_csv(here::here("states.csv")) %>%
 covid_vac_regions <- left_join(covid_vac, regions, by = "name")
 
 covid_vac_regions <- covid_vac_regions[-50,]
+
+print("After join:")
+print(covid_vac_regions[1,])
 
 states <- geojsonio::geojson_read("https://rstudio.github.io/leaflet/json/us-states.geojson", what = "sp")
 
@@ -122,9 +128,12 @@ theme_covid <- function(text_color = "#A67070",
                                         size = .7))
 }
 
+print("Before state screen:")
+print(covid_vac_regions[1,7])
+
 ui <- navbarPage(theme = shinythemes::shinytheme("cosmo"),
                  
-                 "COVID-19 Stats",
+                 "COVID-19 Stats V.1.0",
                  
                  tabPanel("COVID Numbers in the US",
                           sidebarLayout(
@@ -152,9 +161,11 @@ ui <- navbarPage(theme = shinythemes::shinytheme("cosmo"),
                                                           a(href = "https://www.worldometers.info/coronavirus/country/us/", "this website")),
                               selectInput(inputId = "stat", label = "Choose a Variable", choices = c("TotalCasesPerMillion", "DeathsPerMillion"))),
                             mainPanel = mainPanel(ggiraphOutput("plot"),
+                                                  # verbatimTextOutput("test"),
                                                   tableOutput("mlr"))
                           )))
-
+print("After state screen:")
+print(covid_vac_regions[1,7])
 server <- function(input, output) {
   
   output$maps <- renderLeaflet({
@@ -257,28 +268,40 @@ server <- function(input, output) {
                 opacity = .8 )
   })
   
-  selected <- reactive({
-    select(covid_vac_regions, people_fully_vaccinated, input$stat, name, Region)
-  })
+  print("Before select:")
+  print(covid_vac_regions[1,7])
   
-  output$plot <- renderggiraph({
+  # selected <- reactive({
+  #   select(covid_vac_regions, "people_fully_vaccinated", input$stat, "name", "Region")
+  # })
+  
     
-    g <- selected() %>% 
+  print("After select:")
+  print(covid_vac_regions[1,7])
+    
+  output$plot <- renderggiraph({
+
+    g <- covid_vac_regions %>%
       ggplot() +
       geom_point_interactive(aes_string(x = "people_fully_vaccinated", y = input$stat, color = "Region", tooltip = "name", data_id = "name")) +
       labs(x = "Number of People Fully Vaccinated") +
       theme_covid()
-    
+
     girafe(code = print(g))
   })
+  
+  # output$test <- renderPrint({
+  #   
+  #   covid_vac_regions[1, 7]
+  # })
   
   output$mlr <- renderTable({
     
     my_formula <- paste(input$stat, "~ people_fully_vaccinated")
     
-    lm_dt <- lm(my_formula, data = selected())
+    lm_dt <- lm(my_formula, data = covid_vac_regions)
     
-    broom::glance(lm_dt)
+    glance(lm_dt)
     
   })
 }
